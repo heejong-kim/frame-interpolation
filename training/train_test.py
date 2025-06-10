@@ -33,29 +33,29 @@ The training output directory will be created at <base_folder>/<label>.
 """
 import os
 
-import training.augmentation_lib
-import training.data_lib
-import training.eval_lib
-import training.metrics_lib
-import training.model_lib
-import training.train_lib
+import training.augmentation_lib as augmentation_lib
+import training.data_lib as data_lib
+import training.eval_lib as eval_lib
+import training.metrics_lib as metrics_lib
+import training.model_lib as model_lib
+import training.train_lib as train_lib
 from absl import app
 from absl import flags
 from absl import logging
 import gin.tf
-from ..losses import losses
+from losses import losses
 
-from . import augmentation_lib
-from . import data_lib
-from . import eval_lib
-from . import metrics_lib
-from . import model_lib
-from . import train_lib
-from absl import app
-from absl import flags
-from absl import logging
-import gin.tf
-from ..losses import losses
+# from . import augmentation_lib
+# from . import data_lib
+# from . import eval_lib
+# from . import metrics_lib
+# from . import model_lib
+# from . import train_lib
+# from absl import app
+# from absl import flags
+# from absl import logging
+# import gin.tf
+# from ..losses import losses
 
 # Reduce tensorflow logs to ERRORs only.
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -63,13 +63,31 @@ import tensorflow as tf  # pylint: disable=g-import-not-at-top
 tf.get_logger().setLevel('ERROR')
 
 
-_GIN_CONFIG = flags.DEFINE_string('gin_config', None, 'Gin config file.')
-_LABEL = flags.DEFINE_string('label', 'run0',
-                             'Descriptive label for this run.')
-_BASE_FOLDER = flags.DEFINE_string('base_folder', None,
-                                   'Path to checkpoints/summaries.')
-_MODE = flags.DEFINE_enum('mode', 'gpu', ['cpu', 'gpu'],
-                          'Distributed strategy approach.')
+## dubugging purpose:
+import sys
+sys.argv = [
+    'debug',
+    '--gin_config=training/config/film_net-Style.gin',
+    '--label=run-debug',
+    '--base_folder=./test-run-debug',
+    '--mode=gpu'
+]
+
+
+# _GIN_CONFIG = flags.DEFINE_string('gin_config', None, 'Gin config file.')
+# _LABEL = flags.DEFINE_string('label', 'run0',
+#                              'Descriptive label for this run.')
+# _BASE_FOLDER = flags.DEFINE_string('base_folder', None,
+#                                    'Path to checkpoints/summaries.')
+# _MODE = flags.DEFINE_enum('mode', 'gpu', ['cpu', 'gpu'],
+#                           'Distributed strategy approach.')
+
+# Clear any previous flags in interactive session
+flags.FLAGS.unparse_flags()
+flags.FLAGS.__dict__['__parsed'] = False
+
+# Parse the flags!
+flags.FLAGS(sys.argv)  # <- THIS IS CRUCIAL
 
 
 @gin.configurable('training')
@@ -86,7 +104,9 @@ class TrainingOptions(object):
     self.num_steps = num_steps
 
 
+
 def main(argv):
+
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
@@ -137,6 +157,26 @@ def main(argv):
       eval_loop_fn=eval_lib.eval_loop,
       eval_folder=eval_folder,
       eval_datasets=data_lib.create_eval_datasets() or None)
+
+
+strategy = train_lib.get_strategy(_MODE.value)
+train_folder = train_folder
+saved_model_folder = saved_model_folder
+n_iterations = training_options.num_steps
+create_model_fn = model_lib.create_model
+create_losses_fn = losses.training_losses
+create_metrics_fn = metrics_lib.create_metrics_fn
+dataset = data_lib.create_training_dataset(
+    augmentation_fns=augmentation_fns)
+learning_rate = learning_rate
+
+
+train_set=dataset
+import functools
+create_optimizer_fn=functools.partial(
+          tf.keras.optimizers.Adam, learning_rate=learning_rate)
+eval_datasets = None
+
 
 
 if __name__ == '__main__':
